@@ -59,18 +59,19 @@ async function writeNFC(records: NDEFRecord[]) {
 
     let dataPayload: string | ArrayBuffer | undefined;
     if (rec.data) {
-      // rec.data from scannedTag.records is always ArrayBuffer
-      const dataBuffer = rec.data; // rec.data is ArrayBuffer
+      // rec.data from NDEFRecord instances is a DataView.
+      const dataView = rec.data; 
       if (rec.recordType === 'text' || rec.recordType === 'url') {
         const decoder = new TextDecoder(rec.encoding ?? "utf-8");
-        dataPayload = decoder.decode(dataBuffer); // Convert to string for NDEFWriter
+        dataPayload = decoder.decode(dataView); // Convert DataView to string
       } else if (rec.recordType === 'mime') {
-        // For MIME types, NDEFWriter expects ArrayBuffer or other BufferSource
-        dataPayload = dataBuffer;
+        // For MIME types, NDEFWriter expects ArrayBuffer.
+        // rec.data is DataView, so we use its buffer.
+        dataPayload = dataView.buffer; 
       } else {
         // Fallback for unknown types - try to decode as text
         const decoder = new TextDecoder(rec.encoding ?? "utf-8");
-        dataPayload = decoder.decode(dataBuffer);
+        dataPayload = decoder.decode(dataView); // Convert DataView to string
       }
     }
     obj.data = dataPayload;
@@ -154,43 +155,41 @@ function decodeRecord(record: NDEFRecord) {
 
 function handleAddRecord(recordInit: NDEFRecordInitCustom) {
   console.log("Record init received:", recordInit);
-  const newRecord: NDEFRecord = {
+
+  const payload: NDEFRecordInit = {
     recordType: recordInit.recordType,
-    mediaType: recordInit.mediaType,
-    id: recordInit.id,
   };
 
-  if (recordInit.recordType === "text") {
-    newRecord.encoding = recordInit.encoding || "utf-8";
-    newRecord.lang = recordInit.lang || "en";
-    if (typeof recordInit.data === 'string') {
-      const encoder = new TextEncoder(); // encoding for TextEncoder is not standard, use TextDecoder's encoding for consistency if needed
-      newRecord.data = encoder.encode(recordInit.data).buffer;
-    } else {
-      newRecord.data = recordInit.data; // Should be ArrayBuffer already
-    }
-  } else if (recordInit.recordType === "url") {
-    if (typeof recordInit.data === 'string') {
-      const encoder = new TextEncoder();
-      newRecord.data = encoder.encode(recordInit.data).buffer;
-    } else {
-      newRecord.data = recordInit.data;
-    }
-  } else if (recordInit.recordType === "mime") {
-    if (typeof recordInit.data === 'string') { // Text input for MIME type
-      const encoder = new TextEncoder(); // Or use recordInit.encoding if provided for text-based MIME
-      newRecord.data = encoder.encode(recordInit.data).buffer;
-      if (recordInit.encoding) newRecord.encoding = recordInit.encoding;
-    } else { // File input for MIME type
-      newRecord.data = recordInit.data as ArrayBuffer; // Already ArrayBuffer
-    }
-  } else {
-    newRecord.data = recordInit.data as ArrayBuffer;
+  if (recordInit.mediaType) {
+    payload.mediaType = recordInit.mediaType;
   }
 
-  scannedTag.value.records.push(newRecord);
+  if (recordInit.id) {
+    payload.id = recordInit.id;
+  }
+
+  if (recordInit.recordType === "text") {
+    payload.encoding = recordInit.encoding || "utf-8";
+    payload.lang = recordInit.lang || "en";
+  }
+
+  // Assign data directly (string or ArrayBuffer)
+  // The NDEFRecord constructor will handle encoding if data is a string.
+  if (recordInit.data !== undefined) {
+    payload.data = recordInit.data;
+  }
+
+  try {
+    const newRecord = new NDEFRecord(payload);
+    scannedTag.value.records.push(newRecord);
+    console.log("Record added. New records list:", scannedTag.value.records);
+  } catch (error) {
+    console.error("Error creating NDEFRecord:", error, payload);
+    // Optionally, inform the user about the error
+    alert(`Error adding record: ${(error as Error).message}`);
+  }
+
   showAddForm.value = false; // Hide form after adding
-  console.log("Record added. New records list:", scannedTag.value.records);
 }
 
 function handleCancelAddRecord() {
