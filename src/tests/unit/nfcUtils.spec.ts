@@ -147,7 +147,7 @@ describe('nfcUtils', () => {
             { recordType: 'empty' } // Size 1
         ];
         const expectedTotalSize = 12 + 1;
-        expect(estimateNdefMessageSize(records) as number).toEqual(expectedTotalSize); // Using toEqual as per last fix
+        expect(estimateNdefMessageSize(records)).toEqual(expectedTotalSize); 
     });
   });
 
