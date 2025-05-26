@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import type { SpyInstance } from 'vitest';
 import { ref } from 'vue';
 import type { Ref } from 'vue';
 import { readNFC, writeNFC, cancelScan } from '../../services/nfcService';
@@ -236,7 +237,7 @@ describe('nfcService', () => {
   });
 
   describe('writeNFC', () => {
-    let mockEstimateSizeSpy: any;
+    let mockEstimateSizeSpy: SpyInstance<Parameters<typeof nfcUtils.estimateNdefMessageSize>, ReturnType<typeof nfcUtils.estimateNdefMessageSize>>;
 
     beforeEach(() => {
         mockEstimateSizeSpy = vi.spyOn(nfcUtils, 'estimateNdefMessageSize').mockReturnValue(10);
