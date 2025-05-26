@@ -1,15 +1,17 @@
 <script setup lang="ts">
-/*global NDEFRecord*/
-/*global NDEFRecordInit*/
+/*global NDEFRecord*/ // For the record prop type
 
 import { ref } from "vue";
 import { ChevronDownIcon, ChevronUpIcon, XCircleIcon } from "@heroicons/vue/solid";
+// Import utility functions
+import { 
+  decodeRecord, 
+  arrayBufferToBase64, 
+  arrayBufferToHexString 
+} from "../utils/nfcUtils"; // Corrected path
 
 const props = defineProps<{
-  record: NDEFRecord;
-  // No index needed if we rely on App.vue to know which record this is,
-  // but if we pass index, delete can be more direct.
-  // For now, App.vue will manage index.
+  record: NDEFRecord; 
 }>();
 
 const emit = defineEmits(['delete-record']);
@@ -17,36 +19,10 @@ const emit = defineEmits(['delete-record']);
 const showDetails = ref(false);
 
 const handleDelete = () => {
-  emit('delete-record'); // App.vue will know which record to delete based on the component instance or index
+  emit('delete-record'); 
 }
 
-function decodeRecord(record: NDEFRecord) {
-  // Ensure record.data is not null or undefined before accessing its buffer
-  if (!record.data) {
-    return "No data in record";
-  }
-  const decoder = new TextDecoder(record.encoding ?? "utf-8");
-  return decoder.decode(record.data.buffer);
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer, mediaType: string) {
-  const byteArray = new Uint8Array(buffer);
-  let binaryString = "";
-  for (let i = 0; i < byteArray.byteLength; i++) {
-    binaryString += String.fromCharCode(byteArray[i]);
-  }
-  const base64Data = btoa(binaryString);
-  return `data:${mediaType};base64,${base64Data}`;
-}
-
-function arrayBufferToHexString(buffer: ArrayBuffer) {
-  const byteArray = new Uint8Array(buffer);
-  let hexString = "";
-  for (let i = 0; i < byteArray.byteLength; i++) {
-    hexString += byteArray[i].toString(16).padStart(2, "0");
-  }
-  return hexString;
-}
+// Utility functions are now imported, local definitions are removed.
 </script>
 
 <template>
@@ -114,7 +90,7 @@ function arrayBufferToHexString(buffer: ArrayBuffer) {
       <div v-else-if="record.mediaType?.startsWith('image/')">
         <p class="font-semibold">Image Preview:</p>
         <img
-          :src="arrayBufferToBase64(record.data!.buffer, record.mediaType!)"
+          :src="arrayBufferToBase64(record.data!.buffer, record.mediaType!)" 
           alt="NDEF Image Content"
           class="max-w-full h-auto border border-gray-300 dark:border-gray-600"
           title="Preview of the image content"
@@ -138,9 +114,15 @@ function arrayBufferToHexString(buffer: ArrayBuffer) {
       <div v-else-if="record.mediaType === 'text/vcard' || record.mediaType === 'text/x-vcard'" title="Parsed vCard contact information">
         <p class="font-semibold">VCard Data:</p>
         <ul class="list-disc pl-5 text-sm">
-          <li v-for="(line, index) in decodeRecord(record).split('\\n')" :key="index" :title="`vCard line: ${line}`">
-            <span class="font-medium">{{ line.substring(0, line.indexOf(':')) }}:</span>
-            {{ line.substring(line.indexOf(':') + 1) }}
+          <!-- Basic vCard parsing: split lines, then split by the first colon -->
+          <li v-for="(line, index) in decodeRecord(record).split(/\\r\\n|\\n|\\r/)" :key="index" :title="`vCard line: ${line}`">
+            <template v-if="line.includes(':')">
+              <span class="font-medium">{{ line.substring(0, line.indexOf(':')) }}:</span>
+              {{ line.substring(line.indexOf(':') + 1) }}
+            </template>
+            <template v-else>
+              {{ line }}
+            </template>
           </li>
         </ul>
       </div>
