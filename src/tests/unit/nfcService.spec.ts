@@ -34,7 +34,7 @@ const MockAbortControllerConstructor = vi.fn(() => {
     abort: vi.fn(() => {
         if (mockAbortControllerInstance.signal.onabort) {
             mockAbortControllerInstance.signal.aborted = true; 
-            mockAbortControllerInstance.signal.onabort();
+            mockAbortControllerInstance.signal.onabort({} as Event); // Pass mock Event
         }
     }),
     signal: { 
@@ -165,7 +165,7 @@ describe('nfcService', () => {
       expect(scanAbortControllerRef.value?.signal?.onabort).toBeTypeOf('function');
       if (scanAbortControllerRef.value?.signal?.onabort) {
         (scanAbortControllerRef.value.signal as any).aborted = true; 
-        scanAbortControllerRef.value.signal.onabort();
+        scanAbortControllerRef.value.signal.onabort({} as Event); // Pass mock Event
       }
       await readPromise.catch(() => {}); // Catch potential AbortError if scan() rejects
       

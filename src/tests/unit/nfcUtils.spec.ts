@@ -135,7 +135,7 @@ describe('nfcUtils', () => {
     it('should handle long records (payload > 255 bytes)', () => {
         const data = 'a'.repeat(300);
         const records: NDEFRecordInitCustom[] = [{ recordType: 'text', data, lang: 'en' }];
-        const payloadBytes = 1 (status) + textEncoder.encode('en').length + textEncoder.encode(data).length;
+        const payloadBytes = 1 + textEncoder.encode('en').length + textEncoder.encode(data).length; // Fixed: removed (status)
         // TNF (1) + TypeLen (1 for "T") + PayloadLen (4 for LR) + IDLen (0) + TypeStr (1 for "T") + payloadBytes
         const expected = 1 + 1 + 4 + 0 + 1 + payloadBytes;
         expect(estimateNdefMessageSize(records)).toBe(expected);
