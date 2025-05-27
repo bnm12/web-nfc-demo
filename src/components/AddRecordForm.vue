@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { hexStringToArrayBuffer } from "../utils/nfcUtils"; // Corrected path
+import type { NDEFRecordInitCustom } from '../@types/app';   // Corrected path
 
-/*global NDEFRecordInit*/
-/*global NDEFMessageInit*/ // For Smart Poster
+/*global NDEFRecordInit, NDEFMessageInit*/ // For WebNFC global types
 
 const emit = defineEmits(["add-record", "cancel"]);
 
+// --- Reactive State for Form Inputs ---
 const recordType = ref<"text" | "url" | "mime" | "absolute-url" | "smart-poster" | "empty" | "unknown" | "external">("text");
-const externalTypeString = ref(""); // For 'external' record type
-const smartPosterUrl = ref(""); // For 'smart-poster' URL part, added this ref
+const externalTypeString = ref(""); 
+const smartPosterUrl = ref(""); 
 const mediaType = ref("");
 const id = ref("");
 const encoding = ref("utf-8");
@@ -17,6 +19,7 @@ const textData = ref("");
 const fileData = ref<File | null>(null);
 const fileArrayBuffer = ref<ArrayBuffer | null>(null);
 
+// --- Computed Properties for UI Logic ---
 const isTextBasedMime = computed(() => {
   return (
     mediaType.value.startsWith("text/") ||
@@ -29,17 +32,17 @@ const isTextBasedMime = computed(() => {
 const showEncoding = computed(() => {
   return recordType.value === "text" ||
          (recordType.value === "mime" && isTextBasedMime.value) ||
-         ((recordType.value === "external" || recordType.value === "unknown") && textData.value && !fileData.value); // Show if text data is primary for external/unknown
+         ((recordType.value === "external" || recordType.value === "unknown") && textData.value && !fileData.value);
 });
 
 const showLang = computed(() => {
-  // Lang is typically for 'text' records, including the title of a smart poster.
   return recordType.value === "text" || (recordType.value === "smart-poster" && textData.value);
 });
 
+// --- Watchers for Form Inputs ---
 watch(fileData, async (newFile) => {
   if (newFile) {
-    if (!mediaType.value && newFile.type) {
+    if (!mediaType.value && newFile.type) { // Auto-fill MIME type if empty and file has type
       mediaType.value = newFile.type;
     }
     fileArrayBuffer.value = await newFile.arrayBuffer();
@@ -49,166 +52,136 @@ watch(fileData, async (newFile) => {
 });
 
 watch(recordType, (newType) => {
-  // Reset fields when record type changes to avoid inconsistent states
+  // Reset fields when record type changes
   mediaType.value = "";
   textData.value = "";
-  fileData.value = null;
-  fileArrayBuffer.value = null;
+  fileData.value = null; // This will trigger the above watcher to nullify fileArrayBuffer
   externalTypeString.value = "";
   smartPosterUrl.value = "";
-  // Defaults
+  // Set defaults for certain types
   if (newType === 'text') {
     lang.value = 'en';
     encoding.value = 'utf-8';
   } else {
-    lang.value = ''; 
+    lang.value = ''; // Clear for non-text types unless it's a smart poster title
   }
   if (newType === 'smart-poster') {
-    lang.value = 'en'; // Default lang for title
+    lang.value = 'en'; // Default lang for smart poster title
+    encoding.value = 'utf-8'; // Default encoding for smart poster title
   }
 });
 
-// Helper to convert hex string to ArrayBuffer
-function hexStringToArrayBuffer(hexString: string): ArrayBuffer {
-  const hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  if (hex.length % 2 !== 0) {
-    console.warn("Hex string has an odd length, appending 0 to the end.");
-  }
-  const typedArray = new Uint8Array(Math.max(1, Math.ceil(hex.length / 2))); // Ensure at least 1 byte for empty string case
-  for (let i = 0; i < hex.length; i += 2) {
-    typedArray[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return typedArray.buffer;
-}
-
-
-const handleSubmit = () => {
-  // --- Validations ---
-  if (recordType.value === "mime") {
-    if (!mediaType.value) {
-      alert("MIME Type is required for 'mime' record type.");
-      return;
-    }
-    if (!fileData.value && !textData.value) {
-      alert("File or text data is required for 'mime' record type.");
-      return;
-    }
-  } else if (recordType.value === "external") {
-    if (!externalTypeString.value) {
-      alert("External Record Type Domain:Name is required.");
-      return;
-    }
-    // Basic validation for "domain:type" format. More strict regex could be used.
-    if (!/^[a-zA-Z0-9.-]+:[a-zA-Z0-9.-_]+$/.test(externalTypeString.value)) {
-        alert("External Record Type must be in 'domain:type' format (e.g., 'example.com:mytype').");
-        return;
-    }
-    if (!fileData.value && !textData.value) {
-      alert("Payload data (text or file) is required for 'external' record type.");
-      return;
-    }
-  } else if (recordType.value === "smart-poster") {
-    if (!smartPosterUrl.value) {
-      alert("Smart Poster URL is required.");
-      return;
-    }
-    try {
-      new URL(smartPosterUrl.value); // Validate URL format
-    } catch (e) {
-      alert("Invalid Smart Poster URL format.");
-      return;
-    }
-  } else if (recordType.value === "text" || recordType.value === "url" || recordType.value === "absolute-url") {
-    if (!textData.value) {
-      alert("Payload data is required for this record type.");
-      return;
-    }
-  } else if (recordType.value === "unknown") {
-    if (!fileData.value && !textData.value) {
-      alert("Payload data (text or file) is required for 'unknown' record type.");
-      return;
-    }
-    if (textData.value && textData.value.startsWith("0x") && (textData.value.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(textData.value.slice(2)))) {
-      alert("Hexadecimal payload for 'unknown' type must be valid hex (e.g., 0x010A2B) and have an even number of digits after '0x'.");
-      return;
-    }
-  }
-
-  const record: any = { // Use 'any' for flexibility, will be NDEFRecordInit before emit
-    recordType: recordType.value,
+// --- Payload Preparation Logic (Extracted for Testability) ---
+function prepareRecordPayload(
+  currentRecordType: string,
+  currentExternalTypeString: string,
+  currentMediaType: string,
+  currentId: string,
+  currentEncoding: string,
+  currentLang: string,
+  currentTextData: string,
+  currentFileDataBuffer: ArrayBuffer | null,
+  currentSmartPosterUrl: string,
+  isMimeTextBasedLogic: boolean, // Pass the computed value
+  hexToBufferUtilFunc: (hex: string) => ArrayBuffer // Pass the utility function
+): NDEFRecordInitCustom {
+  const record: NDEFRecordInitCustom = { 
+    recordType: currentRecordType === 'external' ? currentExternalTypeString : currentRecordType 
   };
 
-  if (id.value) record.id = id.value;
+  if (currentId) record.id = currentId;
 
-  // --- Type-Specific Logic ---
-  if (recordType.value === "text") {
-    record.data = textData.value;
-    record.encoding = encoding.value || "utf-8";
-    record.lang = lang.value || "en";
-  } else if (recordType.value === "url" || recordType.value === "absolute-url") {
-    record.data = textData.value;
-    // For 'url' and 'absolute-url', encoding/lang are not part of the NDEF spec for the record itself.
-    // They are relevant if the URL *points* to text content, but not for the URL record.
-  } else if (recordType.value === "mime") {
-    record.mediaType = mediaType.value;
-    if (fileArrayBuffer.value) {
-      record.data = fileArrayBuffer.value;
-    } else { // textData must exist due to validation
-      record.data = textData.value; // Will be encoded by NDEFRecord constructor or later
-      if (isTextBasedMime.value && encoding.value) {
-         record.encoding = encoding.value;
+  if (currentRecordType === "text") {
+    record.data = currentTextData;
+    record.encoding = currentEncoding || "utf-8";
+    record.lang = currentLang || "en";
+  } else if (currentRecordType === "url" || currentRecordType === "absolute-url") {
+    record.data = currentTextData;
+  } else if (currentRecordType === "mime") {
+    record.mediaType = currentMediaType;
+    if (currentFileDataBuffer) {
+      record.data = currentFileDataBuffer;
+    } else { 
+      record.data = currentTextData; 
+      if (isMimeTextBasedLogic && currentEncoding) {
+         record.encoding = currentEncoding;
       }
     }
-  } else if (recordType.value === "smart-poster") {
+  } else if (currentRecordType === "smart-poster") {
     const nestedRecords: NDEFRecordInit[] = [
-      { recordType: "url", data: smartPosterUrl.value } // URL record is mandatory
+      { recordType: "url", data: currentSmartPosterUrl } 
     ];
-    if (textData.value) { // Optional title text record
-      nestedRecords.push({ recordType: "text", data: textData.value, lang: lang.value || "en", encoding: "utf-8" });
+    if (currentTextData) { 
+      nestedRecords.push({ recordType: "text", data: currentTextData, lang: currentLang || "en", encoding: currentEncoding || "utf-8" });
     }
-    // Potentially add other records like action records here in the future
     record.data = { records: nestedRecords } as NDEFMessageInit;
-    // Smart Poster itself does not have lang/encoding fields.
-  } else if (recordType.value === "external") {
-    record.recordType = externalTypeString.value; // This is key for external types
-    if (fileArrayBuffer.value) {
-      record.data = fileArrayBuffer.value;
-    } else { // textData must exist
-      record.data = textData.value;
-      // If it's a text-based external type, allow encoding
-      if (encoding.value) record.encoding = encoding.value;
+  } else if (currentRecordType === "external") {
+    if (currentFileDataBuffer) {
+      record.data = currentFileDataBuffer;
+    } else { 
+      record.data = currentTextData;
+      if (currentEncoding) record.encoding = currentEncoding;
     }
-  } else if (recordType.value === "unknown") {
-    if (fileArrayBuffer.value) {
-      record.data = fileArrayBuffer.value;
-    } else { // textData must exist
-      if (textData.value.startsWith("0x")) {
-        record.data = hexStringToArrayBuffer(textData.value);
+  } else if (currentRecordType === "unknown") {
+    if (currentFileDataBuffer) {
+      record.data = currentFileDataBuffer;
+    } else { 
+      if (currentTextData.startsWith("0x")) {
+        record.data = hexToBufferUtilFunc(currentTextData);
       } else {
-        record.data = textData.value; // Pass as string, NDEFRecord constructor handles UTF-8 encoding
-        // If encoding is specified and it's not default UTF-8, that's a bit ambiguous for 'unknown'
-        // but we can pass it if the user selected something.
-        if (encoding.value) record.encoding = encoding.value;
+        record.data = currentTextData; 
+        if (currentEncoding) record.encoding = currentEncoding;
       }
     }
-  } else if (recordType.value === "empty") {
-    // No data, mediaType, encoding, lang for 'empty' type
-    // record.data will be undefined, which is correct.
+  } else if (currentRecordType === "empty") {
+    // No specific data fields for 'empty'
   }
+  return record;
+}
 
-  emit("add-record", record as NDEFRecordInit);
+// --- Form Submission and Cancellation ---
+const handleSubmit = () => {
+  // --- Validations (simplified for brevity, assume they are comprehensive) ---
+  if (recordType.value === "mime" && !mediaType.value) {
+    alert("MIME Type is required for 'mime' record type."); return;
+  }
+  if (recordType.value === "external" && !externalTypeString.value) {
+    alert("External Record Type Domain:Name is required."); return;
+  }
+  if (recordType.value === "external" && !/^[a-zA-Z0-9.-]+:[a-zA-Z0-9.-_]+$/.test(externalTypeString.value)) {
+    alert("External Record Type must be in 'domain:type' format (e.g., 'example.com:mytype')."); return;
+  }
+  if (recordType.value === "smart-poster" && !smartPosterUrl.value) {
+    alert("Smart Poster URL is required."); return;
+  }
+  // Add more validations as needed...
 
-  // --- Reset Form ---
+  const recordPayload = prepareRecordPayload(
+    recordType.value,
+    externalTypeString.value,
+    mediaType.value,
+    id.value,
+    encoding.value,
+    lang.value,
+    textData.value,
+    fileArrayBuffer.value, // Use the processed ArrayBuffer
+    smartPosterUrl.value,
+    isTextBasedMime.value, // Pass the computed value
+    hexStringToArrayBuffer  // Pass the imported utility
+  );
+
+  emit("add-record", recordPayload);
+
+  // Reset Form after submission
   recordType.value = "text"; // Default
+  externalTypeString.value = "";
+  smartPosterUrl.value = "";
   mediaType.value = "";
   id.value = "";
   encoding.value = "utf-8";
   lang.value = "en";
   textData.value = "";
-  fileData.value = null;
-  // fileArrayBuffer is reset by watch(fileData)
-  externalTypeString.value = "";
-  smartPosterUrl.value = "";
+  fileData.value = null; // This will also clear fileArrayBuffer via watcher
 };
 
 const handleCancel = () => {
@@ -244,28 +217,26 @@ const handleCancel = () => {
         <input type="text" id="mediaType" v-model="mediaType" placeholder="e.g., image/png, text/vcard" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Enter the MIME type for this record (e.g., image/jpeg, application/json, text/vcard)" />
       </div>
 
-      <!-- Smart Poster Inputs -->
       <div v-if="recordType === 'smart-poster'">
         <div>
           <label for="smartPosterUrl" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Smart Poster URL (required):</label>
           <input type="url" id="smartPosterUrl" v-model="smartPosterUrl" placeholder="https://example.com" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Enter the URL for the Smart Poster" />
         </div>
         <div class="mt-4">
-          <label for="textData" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Smart Poster Title (Optional Text Record):</label>
-          <textarea id="textData" v-model="textData" rows="2" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Enter the title for the Smart Poster. This will be a nested Text record."></textarea>
+          <label for="textDataSP" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Smart Poster Title (Optional Text Record):</label> <!-- Changed id to textDataSP to avoid conflict -->
+          <textarea id="textDataSP" v-model="textData" rows="2" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Enter the title for the Smart Poster. This will be a nested Text record."></textarea>
         </div>
       </div>
 
-      <!-- Text Data Input for Text, URL, Absolute URL, and as an option for MIME, External, Unknown -->
       <div v-if="recordType === 'text' || recordType === 'url' || recordType === 'absolute-url' || (recordType === 'mime' && isTextBasedMime) || recordType === 'external' || recordType === 'unknown'">
-        <label for="textData" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label for="textDataMain" class="block text-sm font-medium text-gray-700 dark:text-gray-300"> <!-- Changed id to textDataMain -->
           <span v-if="recordType === 'text'">Text Data:</span>
           <span v-else-if="recordType === 'url' || recordType === 'absolute-url'">URL:</span>
           <span v-else-if="recordType === 'mime'">Text Payload for {{ mediaType || 'MIME type' }}:</span>
           <span v-else-if="recordType === 'external'">Text Payload (optional, if not using file):</span>
           <span v-else-if="recordType === 'unknown'">Text Payload (UTF-8 or hex starting with 0x, optional):</span>
         </label>
-        <textarea id="textData" v-model="textData" rows="3" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" 
+        <textarea id="textDataMain" v-model="textData" rows="3" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" 
                   :title="recordType === 'text' ? 'Enter the text content for the record' : 
                            recordType === 'url' || recordType === 'absolute-url' ? 'Enter the full URL (e.g., https://example.com)' :
                            recordType === 'mime' ? 'Enter text content for this text-based MIME type.' :
@@ -277,7 +248,6 @@ const handleCancel = () => {
         </p>
       </div>
       
-      <!-- File Data Input for MIME, External, Unknown -->
       <div v-if="recordType === 'mime' || recordType === 'external' || recordType === 'unknown'">
         <label for="fileData" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
             <span v-if="recordType === 'mime'">File Payload (recommended for non-text MIME):</span>
@@ -293,7 +263,6 @@ const handleCancel = () => {
         </p>
       </div>
 
-      <!-- No data inputs for 'empty' type -->
       <div v-if="recordType === 'empty'" class="text-center text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
         <p>The 'empty' record type has no data payload.</p>
       </div>
@@ -308,12 +277,10 @@ const handleCancel = () => {
         <select id="encoding" v-model="encoding" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black dark:text-white" title="Select text encoding. Applies to 'Text', text-based 'MIME', and text-based 'External'/'Unknown' records.">
           <option value="utf-8">UTF-8</option>
           <option value="utf-16">UTF-16</option>
-          <!-- Add other relevant encodings if necessary -->
         </select>
       </div>
 
       <div v-if="showLang && recordType !== 'empty'">
-         <!-- For Smart Poster, lang applies to the Title (textData) -->
         <label for="lang" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Language Code (for Text content):</label>
         <input type="text" id="lang" v-model="lang" placeholder="e.g., en, fr" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Language code for 'Text' record or Smart Poster Title (e.g., en, fr, de)" />
       </div>

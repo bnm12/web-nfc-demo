@@ -1,0 +1,32 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches: [ main ] # Or use 'master' if that's your primary branch
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x] # Specify Node.js versions to test on
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm' # Enable caching for npm dependencies
+
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+
+    - name: Run build (includes type checking)
+      run: npm run build
+
+    - name: Run unit tests
+      run: npm run test:unit
