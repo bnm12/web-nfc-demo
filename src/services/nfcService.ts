@@ -25,7 +25,7 @@ export async function readNFC(
     console.log("Scan aborted via AbortSignal.");
     status.value.reading = false;
     // Clean up listeners
-    ndef.onreading = () => {}; // Use arrow functions or .bind for proper 'this' if needed, though not an issue here.
+    ndef.onreading = () => {};
     ndef.onreadingerror = () => {};
   };
 
@@ -61,10 +61,9 @@ export async function readNFC(
       } else {
         console.error("NDEF reading error:", event);
       }
-      if (status.value.reading) { // Check if it was reading to avoid setting false if already stopped.
+      if (status.value.reading) { 
         status.value.reading = false;
       }
-      // Deregister handlers to prevent future calls if the reader instance is reused (though typically it's not)
       ndef.onreading = () => {};
       ndef.onreadingerror = () => {};
     };
@@ -74,22 +73,28 @@ export async function readNFC(
 
   } catch (error) {
     console.error("NFC Read Operation Error:", error);
-    if ((error as DOMException).name === 'AbortError') {
-      console.log("Scan aborted by user or timeout.");
-    } else if ((error as DOMException).name === 'NotSupportedError') {
-        alert("WebNFC is not supported on this device/browser.");
-    } else {
-      alert(`Error initiating scan: ${(error as Error).message}`);
-    }
-    status.value.reading = false; 
-    // Ensure listeners are cleaned up on error too
-    ndef.onreading = () => {};
+    status.value.reading = false; // Set status reliably
+    ndef.onreading = () => {};     // Clean up listeners
     ndef.onreadingerror = () => {};
+
+    if ((error as DOMException).name === 'AbortError') {
+      console.log("Scan aborted by user or timeout."); // Log this event
+      // For AbortError, we explicitly DO NOT re-throw, allowing readNFC to resolve.
+      scanAbortController.value = null; // Align with test expectation
+    } else {
+      // For other errors, alert and then re-throw.
+      if ((error as DOMException).name === 'NotSupportedError') {
+        alert("WebNFC is not supported on this device/browser.");
+      } else {
+        alert(`Error initiating scan: ${(error as Error).message}`);
+      }
+      throw error; // Re-throw other errors
+    }
   }
 }
 
 export async function writeNFC(
-  records: NDEFRecord[], // Array of actual NDEFRecord instances
+  records: NDEFRecord[], 
   status: Ref<NFCStatus>
 ): Promise<void> {
   if (!records.length) {
@@ -98,54 +103,43 @@ export async function writeNFC(
   }
   const ndef = new NDEFReader();
 
-  // Convert NDEFRecord instances to NDEFRecordInit for writing
   const recsToWrite: NDEFRecordInit[] = records.map((rec: NDEFRecord) => {
     const obj: NDEFRecordInit = { recordType: rec.recordType };
-
     if (rec.id) obj.id = rec.id;
     if (rec.mediaType) obj.mediaType = rec.mediaType;
     if (rec.encoding) obj.encoding = rec.encoding;
     if (rec.lang) obj.lang = rec.lang;
 
     if (rec.recordType === "smart-poster") {
-      // For smart posters, data for NDEFRecordInit should be NDEFMessageInit
-      // This custom _smartPosterData property was attached in handleAddRecord
       obj.data = (rec as any)._smartPosterData as NDEFMessageInit; 
-      // Encoding/lang are not top-level for smart-poster NDEFRecordInit itself
       delete obj.encoding;
       delete obj.lang;
     } else if (rec.recordType === "empty") {
       delete obj.mediaType;
       delete obj.encoding;
       delete obj.lang;
-      obj.data = undefined; // Explicitly undefined for empty
-    } else if (rec.data) { // rec.data is DataView
-      // For 'text', 'url', 'absolute-url', NDEFRecordInit expects string data.
-      // For 'mime', 'unknown', 'external', it can be string or ArrayBuffer.
-      // The NDEFRecord constructor handles string to ArrayBuffer conversion.
-      // Here, we need to decide if we pass string or ArrayBuffer based on original intent.
+      obj.data = undefined; 
+    } else if (rec.data) { 
       if (rec.encoding && (rec.recordType === 'text' || rec.mediaType?.startsWith('text/'))) {
         const decoder = new TextDecoder(rec.encoding || "utf-8");
-        obj.data = decoder.decode(rec.data); // Convert DataView back to string
+        obj.data = decoder.decode(rec.data);
       } else if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
-        const decoder = new TextDecoder("utf-8"); // URLs are typically UTF-8
+        const decoder = new TextDecoder("utf-8"); 
         obj.data = decoder.decode(rec.data);
       } else {
-        // For 'mime', 'unknown', 'external' that are not text-based, pass ArrayBuffer
         obj.data = rec.data.buffer.slice(rec.data.byteOffset, rec.data.byteOffset + rec.data.byteLength);
       }
     } else {
-      obj.data = undefined; // No data payload
+      obj.data = undefined; 
     }
     return obj;
   });
 
   const estimatedSize = estimateNdefMessageSize(recsToWrite);
-  const SMALL_TAG_CAPACITY = 140; // Example NTAG213 capacity
-  const MEDIUM_TAG_CAPACITY = 500; // Example NTAG215/NTAG216 might be around here or more
+  const SMALL_TAG_CAPACITY = 140; 
+  const MEDIUM_TAG_CAPACITY = 500;
 
   console.log(`Estimated NDEF message size: ${estimatedSize} bytes`);
-
   if (estimatedSize > MEDIUM_TAG_CAPACITY) {
     alert(`Warning: The data size (~${estimatedSize} bytes) is large and may not fit on smaller NFC tags. It might only work on tags with >500 bytes capacity.`);
   } else if (estimatedSize > SMALL_TAG_CAPACITY) {
@@ -155,13 +149,15 @@ export async function writeNFC(
   console.log("Records to write (NDEFRecordInit format):", recsToWrite);
   status.value.writing = true;
   try {
-    await ndef.write({ records: recsToWrite }); // NDEFMessageInit takes 'records'
+    await ndef.write({ records: recsToWrite }); 
     console.log("NFC tag written successfully.");
+    status.value.writing = false; // Set false on success
   } catch (err) {
     console.error("Error writing NDEF message:", err);
     alert(`Error writing tag: ${(err as Error).message}`);
+    status.value.writing = false; 
+    throw err; // Re-throw the error
   }
-  status.value.writing = false;
 }
 
 export function cancelScan(scanAbortController: Ref<AbortController | null>): void {

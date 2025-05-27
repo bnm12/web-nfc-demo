@@ -104,14 +104,32 @@ export function decodeRecord(record: NDEFRecord): string {
 }
 
 // Converts an ArrayBuffer to a Base64 string, prepended with a data URL scheme.
+const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 export function arrayBufferToBase64(buffer: ArrayBuffer, mediaType: string): string {
-  const byteArray = new Uint8Array(buffer);
-  let binaryString = "";
-  for (let i = 0; i < byteArray.byteLength; i++) {
-    binaryString += String.fromCharCode(byteArray[i]);
+  const bytes = new Uint8Array(buffer);
+  let result = '';
+  let i;
+
+  for (i = 0; i < bytes.length - 2; i += 3) {
+    result += base64Chars[bytes[i] >> 2];
+    result += base64Chars[((bytes[i] & 0x03) << 4) | (bytes[i + 1] >> 4)];
+    result += base64Chars[((bytes[i + 1] & 0x0F) << 2) | (bytes[i + 2] >> 6)];
+    result += base64Chars[bytes[i + 2] & 0x3F];
   }
-  const base64Data = btoa(binaryString);
-  return `data:${mediaType};base64,${base64Data}`;
+
+  if (i < bytes.length) {
+    result += base64Chars[bytes[i] >> 2];
+    if (bytes.length % 3 === 2) { // Two bytes left
+      result += base64Chars[((bytes[i] & 0x03) << 4) | (bytes[i + 1] >> 4)];
+      result += base64Chars[(bytes[i + 1] & 0x0F) << 2];
+      result += "=";
+    } else { // One byte left
+      result += base64Chars[(bytes[i] & 0x03) << 4];
+      result += "==";
+    }
+  }
+  return `data:${mediaType};base64,${result}`;
 }
 
 // Converts an ArrayBuffer to a hexadecimal string.
@@ -126,8 +144,11 @@ export function arrayBufferToHexString(buffer: ArrayBuffer): string {
 
 // Converts a hexadecimal string (with or without "0x" prefix) to an ArrayBuffer.
 export function hexStringToArrayBuffer(hexString: string): ArrayBuffer {
-  const hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  const bufferLength = Math.ceil(hex.length / 2);
+  let hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
+  if (hex.length % 2 !== 0) {
+    hex += "0"; // Pad with a zero if odd length
+  }
+  const bufferLength = hex.length / 2;
   const typedArray = new Uint8Array(bufferLength);
   for (let i = 0; i < hex.length; i += 2) {
     const byteString = hex.substring(i, i + 2);

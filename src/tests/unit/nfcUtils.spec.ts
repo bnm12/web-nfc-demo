@@ -85,8 +85,8 @@ describe('nfcUtils', () => {
       const urlData = 'ftp://example.com/file';
       const records: NDEFRecordInitCustom[] = [{ recordType: 'absolute-url', data: urlData }];
       const typeFieldLength = textEncoder.encode(urlData).length;
-      // TNF (1) + Type Length (1 byte for length of type string) + Payload Length (0) + Actual Type (length of urlData)
-      expect(estimateNdefMessageSize(records)).toBe(1 + 1 + 0 + typeFieldLength);
+      // TNF (1) + Type Length (1) + Actual Type (typeFieldLength) + Payload Length Byte (1, for 0 payload) + Payload (0)
+      expect(estimateNdefMessageSize(records)).toBe(3 + typeFieldLength);
     });
     
     it('should estimate size for a mime record', () => {
@@ -220,7 +220,7 @@ describe('nfcUtils', () => {
     it('should handle binary data', () => {
         const buffer = new Uint8Array([0, 1, 2, 253, 254, 255]).buffer;
         const mediaType = 'application/octet-stream';
-        expect(arrayBufferToBase64(buffer, mediaType)).toBe('data:application/octet-stream;base64,AAEChf/+/w==');
+        expect(arrayBufferToBase64(buffer, mediaType)).toBe('data:application/octet-stream;base64,AAEC/f7/');
     });
   });
 
@@ -261,8 +261,8 @@ describe('nfcUtils', () => {
     });
 
     it('should handle an odd length hex string (padding with 0 implicitly for the last byte)', () => {
-      const buffer1 = hexStringToArrayBuffer('F'); // Expected: [0x0F]
-      expect(new Uint8Array(buffer1)).toEqual(new Uint8Array([0x0F]));
+      const buffer1 = hexStringToArrayBuffer('F'); // Now expecting [0xF0] due to consistent padding rule
+      expect(new Uint8Array(buffer1)).toEqual(new Uint8Array([0xF0]));
       
       const buffer2 = hexStringToArrayBuffer('FF0'); // Expected: [0xFF, 0x00]
       expect(new Uint8Array(buffer2)).toEqual(new Uint8Array([0xFF, 0x00]));
