@@ -98,7 +98,7 @@ describe('nfcService', () => {
       expect(status.value.reading).toBe(true);
       expect(MockNDEFReaderConstructor).toHaveBeenCalledTimes(1);
       expect(MockAbortControllerConstructor).toHaveBeenCalledTimes(1);
-      expect(scanAbortControllerRef.value).toBe(mockAbortControllerInstance);
+      expect(scanAbortControllerRef.value).toStrictEqual(mockAbortControllerInstance);
       expect(mockNdefReaderInstance.scan).toHaveBeenCalledWith({ signal: mockAbortControllerInstance.signal });
     });
 
@@ -312,7 +312,7 @@ describe('nfcService', () => {
         ];
         
         await writeNFC(records, status);
-        expect(mockNdefReaderInstance.write).toHaveBeenCalledWith({ records: expect.arrayContaining(expectedMapped.map(r => expect.objectContaining(r))) });
+        expect(mockNdefReaderInstance.write).toHaveBeenCalledWith({ records: expectedMapped.map(r => expect.objectContaining(r)) });
     });
   });
 
