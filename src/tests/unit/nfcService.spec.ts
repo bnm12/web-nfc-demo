@@ -207,10 +207,16 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws AbortError: sets reading false, logs abortion', async () => {
       const abortError = new DOMException('Scan aborted by user.', 'AbortError');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
+      // Replace this line:
+      // mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
+      // With this line:
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); // Ensure the mock function is async and the error is thrown in a subsequent microtask
+        throw abortError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); // Add this line
+      await Promise.resolve(); // Keep this from previous attempt, flushes microtasks for assertions
       
       expect(status.value.reading).toBe(false);
       expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout.");
@@ -218,10 +224,13 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws NotSupportedError: alerts, sets reading false', async () => {
       const notSupportedError = new DOMException('WebNFC is not supported.', 'NotSupportedError');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(notSupportedError);
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw notSupportedError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); // Add this line
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith("WebNFC is not supported on this device/browser.");
       expect(status.value.reading).toBe(false);
@@ -229,10 +238,13 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws other error: alerts message, sets reading false', async () => {
       const otherError = new Error('Some other scan error');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(otherError);
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw otherError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); // Add this line
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith(`Error initiating scan: ${otherError.message}`);
       expect(status.value.reading).toBe(false);
@@ -285,11 +297,14 @@ describe('nfcService', () => {
 
     it('ndef.write() throws error: alerts, sets writing false', async () => {
       const writeError = new Error('Failed to write tag');
-      mockNdefReaderInstance.write.mockRejectedValueOnce(writeError);
+      mockNdefReaderInstance.write.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw writeError; 
+      });
       const records = [{ recordType: 'text', data: new DataView(new TextEncoder().encode("test").buffer) } as unknown as NDEFRecord];
       
       await writeNFC(records, status);
-      await Promise.resolve(); // Add this line
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith(`Error writing tag: ${writeError.message}`);
       expect(status.value.writing).toBe(false);
@@ -309,10 +324,10 @@ describe('nfcService', () => {
         const expectedMapped = [
             { recordType: 'text', data: "Test", encoding: 'utf-8', lang: 'en', id: '1'},
             { recordType: 'url', data: "https://a.b", mediaType: 'text/uri'}, 
-            { recordType: 'mime', mediaType: 'image/jpeg', data: expect.any(ArrayBuffer) }, // MODIFIED HERE
-            { recordType: 'empty', data: undefined, mediaType: undefined, encoding: undefined, lang: undefined }, 
+            { recordType: 'mime', mediaType: 'image/jpeg', data: expect.any(ArrayBuffer) },
+            { recordType: 'empty', data: undefined }, // MODIFIED
             { recordType: 'absolute-url', data: "tel:123" },
-            { recordType: 'smart-poster', data: { records: [{recordType: 'url', data: 'http://sp.com'}]}, encoding: undefined, lang: undefined },
+            { recordType: 'smart-poster', data: { records: [{recordType: 'url', data: 'http://sp.com'}]} }, // MODIFIED
         ];
         
         await writeNFC(records, status);
