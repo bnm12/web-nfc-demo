@@ -210,6 +210,7 @@ describe('nfcService', () => {
       mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      await Promise.resolve(); // Add this line
       
       expect(status.value.reading).toBe(false);
       expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout.");
@@ -220,6 +221,7 @@ describe('nfcService', () => {
       mockNdefReaderInstance.scan.mockRejectedValueOnce(notSupportedError);
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      await Promise.resolve(); // Add this line
       
       expect(mockAlert).toHaveBeenCalledWith("WebNFC is not supported on this device/browser.");
       expect(status.value.reading).toBe(false);
@@ -230,6 +232,7 @@ describe('nfcService', () => {
       mockNdefReaderInstance.scan.mockRejectedValueOnce(otherError);
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      await Promise.resolve(); // Add this line
       
       expect(mockAlert).toHaveBeenCalledWith(`Error initiating scan: ${otherError.message}`);
       expect(status.value.reading).toBe(false);
@@ -286,6 +289,7 @@ describe('nfcService', () => {
       const records = [{ recordType: 'text', data: new DataView(new TextEncoder().encode("test").buffer) } as unknown as NDEFRecord];
       
       await writeNFC(records, status);
+      await Promise.resolve(); // Add this line
       
       expect(mockAlert).toHaveBeenCalledWith(`Error writing tag: ${writeError.message}`);
       expect(status.value.writing).toBe(false);
@@ -305,14 +309,24 @@ describe('nfcService', () => {
         const expectedMapped = [
             { recordType: 'text', data: "Test", encoding: 'utf-8', lang: 'en', id: '1'},
             { recordType: 'url', data: "https://a.b", mediaType: 'text/uri'}, 
-            { recordType: 'mime', mediaType: 'image/jpeg', data: new ArrayBuffer(10)},
+            { recordType: 'mime', mediaType: 'image/jpeg', data: expect.any(ArrayBuffer) }, // MODIFIED HERE
             { recordType: 'empty', data: undefined, mediaType: undefined, encoding: undefined, lang: undefined }, 
             { recordType: 'absolute-url', data: "tel:123" },
             { recordType: 'smart-poster', data: { records: [{recordType: 'url', data: 'http://sp.com'}]}, encoding: undefined, lang: undefined },
         ];
         
         await writeNFC(records, status);
+        // await Promise.resolve(); // Consider adding if other tests needed it, but let's try without first for this one.
+        
         expect(mockNdefReaderInstance.write).toHaveBeenCalledWith({ records: expectedMapped.map(r => expect.objectContaining(r)) });
+
+        // ADDED: Check the byteLength of the ArrayBuffer for the mime record
+        const writtenArg = mockNdefReaderInstance.write.mock.calls[0][0];
+        const mimeRecordInData = writtenArg.records.find((r: any) => r.recordType === 'mime');
+        expect(mimeRecordInData).toBeDefined();
+        if (mimeRecordInData) {
+            expect((mimeRecordInData.data as ArrayBuffer).byteLength).toBe(10);
+        }
     });
   });
 
