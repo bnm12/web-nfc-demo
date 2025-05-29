@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import type { SpyInstance } from 'vitest';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import type { Ref } from 'vue';
 import { readNFC, writeNFC, cancelScan } from '../../services/nfcService';
 import type { NFCStatus, ScannedTag } from '../../@types/app'; // NDEFRecordInitCustom not directly used by service tests
@@ -216,7 +216,8 @@ describe('nfcService', () => {
       });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); // Keep this from previous attempt, flushes microtasks for assertions
+      // Replace await Promise.resolve(); with await nextTick();
+      await nextTick(); 
       
       expect(status.value.reading).toBe(false);
       expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout.");
