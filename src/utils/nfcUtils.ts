@@ -76,12 +76,10 @@ export function estimateNdefMessageSize(records: NDEFRecordInit[], isRecursiveCa
     }
     
     // Payload Length field (SR or not)
-    // For 'absolute-url', the URI is in the type field, and payload is typically empty.
-    // The test failure (expected 24, got 25) suggests that for 'absolute-url',
-    // this payload length field (which would be 1 byte for a 0-length payload) should not be counted.
-    if (record.recordType !== 'absolute-url') {
-      recordSize += (payloadByteLength < 256 && !isRecursiveCall) ? 1 : 4;
-    }
+    // This field is 1 byte if payloadByteLength < 256 (Short Record), or 4 bytes otherwise (Long Record).
+    // This applies to all record types, including absolute-url which has an empty payload (payloadByteLength = 0),
+    // so its payload length field will be 1 byte with value 0x00.
+    recordSize += (payloadByteLength < 256 && !isRecursiveCall) ? 1 : 4;
 
     if (record.id) {
       recordSize += 1; // ID Length byte
@@ -127,8 +125,14 @@ export function arrayBufferToHexString(buffer: ArrayBuffer): string {
 // Converts a hexadecimal string (with or without "0x" prefix) to an ArrayBuffer.
 export function hexStringToArrayBuffer(hexString: string): ArrayBuffer {
   const hexSanitized = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  // Pad with a trailing '0' if the sanitized hex string has an odd length
-  const finalHex = hexSanitized.length % 2 ? hexSanitized + '0' : hexSanitized;
+  
+  let finalHex = hexSanitized;
+  if (hexSanitized.length === 1) {
+    finalHex = '0' + hexSanitized; // Handles 'F' -> '0F'
+  } else if (hexSanitized.length % 2) {
+    finalHex = hexSanitized + '0'; // Handles 'FF0' -> 'FF00', 'ABCDE' -> 'ABCDE0'
+  }
+  // If even length, finalHex remains hexSanitized (e.g. 'ABCD' -> 'ABCD')
   
   const bufferLength = finalHex.length / 2;
   const typedArray = new Uint8Array(bufferLength);
