@@ -75,11 +75,11 @@ export function estimateNdefMessageSize(records: NDEFRecordInit[], isRecursiveCa
       }
     }
     
-    recordSize += (payloadByteLength < 256 && !isRecursiveCall) ? 1 : 4; // Payload Length field (SR or not)
-                                                                    // NDEF spec section 3.2.5: SR flag is only for the first record chunk.
-                                                                    // For nested records (like in Smart Poster), SR might not apply the same way or be forced off.
-                                                                    // However, NDEFRecord constructor handles this, so for estimation, this logic is an approximation.
-                                                                    // A simple heuristic: if it's a recursive call, assume it might not be a short record.
+    // Payload Length field (SR or not)
+    // This field is 1 byte if payloadByteLength < 256 (Short Record), or 4 bytes otherwise (Long Record).
+    // This applies to all record types, including absolute-url which has an empty payload (payloadByteLength = 0),
+    // so its payload length field will be 1 byte with value 0x00.
+    recordSize += (payloadByteLength < 256 && !isRecursiveCall) ? 1 : 4;
 
     if (record.id) {
       recordSize += 1; // ID Length byte
@@ -106,10 +106,8 @@ export function decodeRecord(record: NDEFRecord): string {
 // Converts an ArrayBuffer to a Base64 string, prepended with a data URL scheme.
 export function arrayBufferToBase64(buffer: ArrayBuffer, mediaType: string): string {
   const byteArray = new Uint8Array(buffer);
-  let binaryString = "";
-  for (let i = 0; i < byteArray.byteLength; i++) {
-    binaryString += String.fromCharCode(byteArray[i]);
-  }
+  // Changed to Array.from for potentially better handling in environments like jsdom
+  let binaryString = Array.from(byteArray, byte => String.fromCharCode(byte)).join('');
   const base64Data = btoa(binaryString);
   return `data:${mediaType};base64,${base64Data}`;
 }
@@ -126,11 +124,20 @@ export function arrayBufferToHexString(buffer: ArrayBuffer): string {
 
 // Converts a hexadecimal string (with or without "0x" prefix) to an ArrayBuffer.
 export function hexStringToArrayBuffer(hexString: string): ArrayBuffer {
-  const hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  const bufferLength = Math.ceil(hex.length / 2);
+  const hexSanitized = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
+  
+  let finalHex = hexSanitized;
+  if (hexSanitized.length === 1) {
+    finalHex = '0' + hexSanitized; // Handles 'F' -> '0F'
+  } else if (hexSanitized.length % 2) {
+    finalHex = hexSanitized + '0'; // Handles 'FF0' -> 'FF00', 'ABCDE' -> 'ABCDE0'
+  }
+  // If even length, finalHex remains hexSanitized (e.g. 'ABCD' -> 'ABCD')
+  
+  const bufferLength = finalHex.length / 2;
   const typedArray = new Uint8Array(bufferLength);
-  for (let i = 0; i < hex.length; i += 2) {
-    const byteString = hex.substring(i, i + 2);
+  for (let i = 0; i < finalHex.length; i += 2) {
+    const byteString = finalHex.substring(i, i + 2);
     typedArray[i / 2] = parseInt(byteString, 16);
   }
   return typedArray.buffer;

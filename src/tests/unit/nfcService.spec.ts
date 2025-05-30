@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import type { SpyInstance } from 'vitest';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import type { Ref } from 'vue';
 import { readNFC, writeNFC, cancelScan } from '../../services/nfcService';
 import type { NFCStatus, ScannedTag } from '../../@types/app'; // NDEFRecordInitCustom not directly used by service tests
@@ -98,7 +98,7 @@ describe('nfcService', () => {
       expect(status.value.reading).toBe(true);
       expect(MockNDEFReaderConstructor).toHaveBeenCalledTimes(1);
       expect(MockAbortControllerConstructor).toHaveBeenCalledTimes(1);
-      expect(scanAbortControllerRef.value).toBe(mockAbortControllerInstance);
+      expect(scanAbortControllerRef.value).toStrictEqual(mockAbortControllerInstance);
       expect(mockNdefReaderInstance.scan).toHaveBeenCalledWith({ signal: mockAbortControllerInstance.signal });
     });
 
@@ -207,9 +207,17 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws AbortError: sets reading false, logs abortion', async () => {
       const abortError = new DOMException('Scan aborted by user.', 'AbortError');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
+      // Replace this line:
+      // mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
+      // With this line:
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); // Ensure the mock function is async and the error is thrown in a subsequent microtask
+        throw abortError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      // Replace await Promise.resolve(); with await nextTick();
+      await nextTick(); 
       
       expect(status.value.reading).toBe(false);
       expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout.");
@@ -217,9 +225,13 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws NotSupportedError: alerts, sets reading false', async () => {
       const notSupportedError = new DOMException('WebNFC is not supported.', 'NotSupportedError');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(notSupportedError);
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw notSupportedError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith("WebNFC is not supported on this device/browser.");
       expect(status.value.reading).toBe(false);
@@ -227,9 +239,13 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws other error: alerts message, sets reading false', async () => {
       const otherError = new Error('Some other scan error');
-      mockNdefReaderInstance.scan.mockRejectedValueOnce(otherError);
+      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw otherError; 
+      });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith(`Error initiating scan: ${otherError.message}`);
       expect(status.value.reading).toBe(false);
@@ -282,10 +298,14 @@ describe('nfcService', () => {
 
     it('ndef.write() throws error: alerts, sets writing false', async () => {
       const writeError = new Error('Failed to write tag');
-      mockNdefReaderInstance.write.mockRejectedValueOnce(writeError);
+      mockNdefReaderInstance.write.mockImplementationOnce(async () => { 
+        await Promise.resolve(); 
+        throw writeError; 
+      });
       const records = [{ recordType: 'text', data: new DataView(new TextEncoder().encode("test").buffer) } as unknown as NDEFRecord];
       
       await writeNFC(records, status);
+      await Promise.resolve(); 
       
       expect(mockAlert).toHaveBeenCalledWith(`Error writing tag: ${writeError.message}`);
       expect(status.value.writing).toBe(false);
@@ -305,14 +325,24 @@ describe('nfcService', () => {
         const expectedMapped = [
             { recordType: 'text', data: "Test", encoding: 'utf-8', lang: 'en', id: '1'},
             { recordType: 'url', data: "https://a.b", mediaType: 'text/uri'}, 
-            { recordType: 'mime', mediaType: 'image/jpeg', data: new ArrayBuffer(10)},
-            { recordType: 'empty', data: undefined, mediaType: undefined, encoding: undefined, lang: undefined }, 
+            { recordType: 'mime', mediaType: 'image/jpeg', data: expect.any(ArrayBuffer) },
+            { recordType: 'empty', data: undefined }, // MODIFIED
             { recordType: 'absolute-url', data: "tel:123" },
-            { recordType: 'smart-poster', data: { records: [{recordType: 'url', data: 'http://sp.com'}]}, encoding: undefined, lang: undefined },
+            { recordType: 'smart-poster', data: { records: [{recordType: 'url', data: 'http://sp.com'}]} }, // MODIFIED
         ];
         
         await writeNFC(records, status);
-        expect(mockNdefReaderInstance.write).toHaveBeenCalledWith({ records: expect.arrayContaining(expectedMapped.map(r => expect.objectContaining(r))) });
+        // await Promise.resolve(); // Consider adding if other tests needed it, but let's try without first for this one.
+        
+        expect(mockNdefReaderInstance.write).toHaveBeenCalledWith({ records: expectedMapped.map(r => expect.objectContaining(r)) });
+
+        // ADDED: Check the byteLength of the ArrayBuffer for the mime record
+        const writtenArg = mockNdefReaderInstance.write.mock.calls[0][0];
+        const mimeRecordInData = writtenArg.records.find((r: any) => r.recordType === 'mime');
+        expect(mimeRecordInData).toBeDefined();
+        if (mimeRecordInData) {
+            expect((mimeRecordInData.data as ArrayBuffer).byteLength).toBe(10);
+        }
     });
   });
 

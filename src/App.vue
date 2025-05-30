@@ -79,7 +79,7 @@ function handleCancelAddRecord() {
         @click="callReadNFC"
         :disabled="status.reading"
         :class="[
-          'w-full sm:w-auto flex-1 text-white font-bold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150',
+          'w-full sm:w-auto flex-1 text-white font-bold py-3 px-6 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150',
           status.reading && !status.writing ? 'bg-blue-600 animate-pulse' : 'bg-blue-500 hover:bg-blue-700',
           status.reading ? 'disabled:bg-blue-400 dark:disabled:bg-blue-700' : 'disabled:bg-gray-400 dark:disabled:bg-gray-600'
         ]"
@@ -98,7 +98,7 @@ function handleCancelAddRecord() {
       <button
         @click="callCancelScan"
         v-if="status.reading && !status.writing"
-        class="w-full sm:w-auto flex-1 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150"
+        class="w-full sm:w-auto flex-1 bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150"
         title="Cancel the ongoing NFC scan"
       >
         Cancel Scan
@@ -107,7 +107,7 @@ function handleCancelAddRecord() {
         @click="callWriteNFC" 
         :disabled="!scannedTag.records.length || status.writing || status.reading"
         :class="[
-          'w-full sm:w-auto flex-1 text-white font-bold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150',
+          'w-full sm:w-auto flex-1 text-white font-bold py-3 px-6 rounded-md shadow-sm flex items-center justify-center transition-colors duration-150',
           status.writing ? 'bg-green-600 animate-pulse' : 'bg-green-500 hover:bg-green-700',
           status.writing ? 'disabled:bg-green-400 dark:disabled:bg-green-700' : 'disabled:bg-gray-400 dark:disabled:bg-gray-600'
         ]"
@@ -134,7 +134,7 @@ function handleCancelAddRecord() {
     <div class="add-record-section mb-4">
       <button
         @click="showAddForm = !showAddForm"
-        class="w-full bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md shadow-sm"
+        class="w-full bg-purple-500 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-md shadow-sm"
         :title="showAddForm ? 'Close the form for adding a new record' : 'Open form to add a new NDEF record'"
       >
         {{ showAddForm ? 'Cancel Adding Record' : 'Add New Record' }}
@@ -153,9 +153,9 @@ function handleCancelAddRecord() {
         id="continuousScanCheckbox"
         v-model="continuousScan"
         :disabled="status.reading"
-        class="form-checkbox h-5 w-5 text-indigo-600 dark:text-indigo-400 bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 dark:focus:ring-indigo-300"
+        class="form-checkbox h-6 w-6 text-indigo-600 dark:text-indigo-400 bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 dark:focus:ring-indigo-300"
       />
-      <label for="continuousScanCheckbox" class="text-sm font-medium text-gray-700 dark:text-gray-300">Continuous Scanning</label>
+      <label for="continuousScanCheckbox" class="p-1 text-base font-medium text-gray-700 dark:text-gray-300">Continuous Scanning</label>
     </div>
     
     <div v-if="scannedTag.uuid || scannedTag.records.length > 0" class="records-display bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6">

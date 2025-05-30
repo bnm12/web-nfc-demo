@@ -85,8 +85,8 @@ describe('nfcUtils', () => {
       const urlData = 'ftp://example.com/file';
       const records: NDEFRecordInitCustom[] = [{ recordType: 'absolute-url', data: urlData }];
       const typeFieldLength = textEncoder.encode(urlData).length;
-      // TNF (1) + Type Length (1 byte for length of type string) + Payload Length (0) + Actual Type (length of urlData)
-      expect(estimateNdefMessageSize(records)).toBe(1 + 1 + 0 + typeFieldLength);
+      // TNF (1) + Type Length byte (1) + Payload Length SR byte (1, for empty payload) + Actual Type (typeFieldLength) + Actual Payload (0)
+      expect(estimateNdefMessageSize(records)).toBe(1 + 1 + 1 + typeFieldLength);
     });
     
     it('should estimate size for a mime record', () => {

@@ -35,18 +35,18 @@ const handleDelete = () => {
         <p :title="`Record type: ${record.recordType}`">{{ record.recordType }}</p>
       </div>
       <div class="flex items-center space-x-2">
-        <button @click="showDetails = !showDetails" class="p-1" title="Show/Hide detailed record information (ID, encoding, etc.)">
+        <button @click="showDetails = !showDetails" class="p-2" title="Show/Hide detailed record information (ID, encoding, etc.)">
           <ChevronDownIcon v-if="!showDetails" class="w-6 h-6" />
           <ChevronUpIcon v-else class="w-6 h-6" />
         </button>
-        <button @click="handleDelete" class="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600" title="Delete this record from the list">
+        <button @click="handleDelete" class="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600" title="Delete this record from the list">
           <XCircleIcon class="w-6 h-6" />
         </button>
       </div>
     </div>
 
     <div v-if="showDetails" class="mb-2 text-sm border-t border-gray-200 dark:border-gray-700 pt-2">
-      <div class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <p class="font-semibold"><span title="Identifier for this NDEF record">Id:</span></p>
           <p :title="`Record ID: ${record.id ?? 'N/A'}`">{{ record.id ?? "N/A" }}</p>

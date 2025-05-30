@@ -254,7 +254,7 @@ const handleCancel = () => {
             <span v-else-if="recordType === 'external'">File Payload (optional, if not using text):</span>
             <span v-else-if="recordType === 'unknown'">File Payload (optional):</span>
         </label>
-        <input type="file" id="fileData" @change="fileData = ($event.target as HTMLInputElement)?.files?.[0] ?? null" class="mt-1 block w-full text-sm text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none p-1" 
+        <input type="file" id="fileData" @change="fileData = ($event.target as HTMLInputElement)?.files?.[0] ?? null" class="mt-1 block w-full text-sm text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none p-2" 
                :title="recordType === 'mime' ? 'Select a file for the MIME record. Type will be auto-filled if empty.' : 
                         recordType === 'external' ? 'Select a file for the external type record, if not providing text data.' : 
                         recordType === 'unknown' ? 'Select a file for the unknown type record.' : ''">
@@ -285,9 +285,9 @@ const handleCancel = () => {
         <input type="text" id="lang" v-model="lang" placeholder="e.g., en, fr" class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm text-black dark:text-white bg-white dark:bg-gray-700" title="Language code for 'Text' record or Smart Poster Title (e.g., en, fr, de)" />
       </div>
 
-      <div class="flex justify-end space-x-3">
-        <button type="button" @click="handleCancel" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded-md border border-gray-300 dark:border-gray-500" title="Close this form without adding a record">Cancel</button>
-        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md border border-transparent" title="Add this record to the list (does not write to tag yet)">Create Record</button>
+      <div class="flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+        <button type="button" @click="handleCancel" class="w-full px-5 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded-md border border-gray-300 dark:border-gray-500" title="Close this form without adding a record">Cancel</button>
+        <button type="submit" class="w-full px-5 py-3 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md border border-transparent" title="Add this record to the list (does not write to tag yet)">Create Record</button>
       </div>
     </form>
   </div>
