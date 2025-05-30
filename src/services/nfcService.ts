@@ -73,13 +73,13 @@ export async function readNFC(
     console.log("NDEFReader scan() method resolved. Listening for tags...");
 
   } catch (error) {
-    console.error("NFC Read Operation Error:", error);
+    // console.error("NFC Read Operation Error:", error); // Commented out for diagnostics
     if ((error as DOMException).name === 'AbortError') {
-      console.log("Scan aborted by user or timeout.");
+      // console.log("Scan aborted by user or timeout."); // Commented out for diagnostics
     } else if ((error as DOMException).name === 'NotSupportedError') {
-        alert("WebNFC is not supported on this device/browser.");
+        alert("WebNFC is not supported on this device/browser."); // Keep alert for now, or comment if needed for other tests
     } else {
-      alert(`Error initiating scan: ${(error as Error).message}`);
+      alert(`Error initiating scan: ${(error as Error).message}`); // Keep alert for now
     }
     status.value.reading = false; 
     // Ensure listeners are cleaned up on error too
