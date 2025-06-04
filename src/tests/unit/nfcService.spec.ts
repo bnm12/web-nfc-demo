@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } 
 import type { SpyInstance } from 'vitest';
 import { ref, nextTick } from 'vue';
 import type { Ref } from 'vue';
-import { readNFC, writeNFC, cancelScan, readNFC_simplified_diagnostic } from '../../services/nfcService';
+import { readNFC, writeNFC, cancelScan } from '../../services/nfcService'; // Removed readNFC_simplified_diagnostic
 import type { NFCStatus, ScannedTag } from '../../@types/app'; // NDEFRecordInitCustom not directly used by service tests
 import * as nfcUtils from '../../utils/nfcUtils'; 
 
@@ -207,27 +207,37 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws AbortError: sets reading false, logs abortion', async () => {
       const abortError = new DOMException('Scan aborted by user.', 'AbortError');
-      // Replace this line:
-      // mockNdefReaderInstance.scan.mockRejectedValueOnce(abortError);
-      // With this line:
-      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
-        await Promise.resolve(); // Ensure the mock function is async and the error is thrown in a subsequent microtask
-        throw abortError; 
+
+      // Configure the mock NDEFReader constructor for this specific test
+      // to ensure the 'scan' call within readNFC throws the abortError.
+      MockNDEFReaderConstructor.mockImplementationOnce(() => {
+        // Create a new mock instance for this specific test run
+        const specificMockNdefReaderInstance = {
+          scan: vi.fn().mockImplementationOnce(async () => {
+            await Promise.resolve(); // Ensure async behavior
+            throw abortError;
+          }),
+          write: vi.fn(() => Promise.resolve()), // Default write behavior
+          onreading: null,
+          onreadingerror: null,
+        };
+        // Assign to the outer scope mockNdefReaderInstance for potential cleanup access,
+        // though this instance is primarily for this test. The service gets this instance.
+        mockNdefReaderInstance = specificMockNdefReaderInstance;
+        return specificMockNdefReaderInstance;
       });
 
-      // Call the simplified version:
-      await readNFC_simplified_diagnostic(status); 
-      
+      // Call the main readNFC function.
+      // readNFC doesn't return a promise that signals completion of scan,
+      // it sets up event handlers and its own try/catch handles scan errors.
+      await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
+
+      // Allow Vue to process reactive updates if status changes
       await nextTick(); 
       
-      // Assertion for status remains:
       expect(status.value.reading).toBe(false);
-      // The console log for "Scan aborted by user or timeout." is from the original readNFC's catch block.
-      // Since we are bypassing that, this specific log won't occur from the simplified function.
-      // So, either comment out or remove this expect for this diagnostic test run:
-      // expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout."); 
-      // For now, let's focus on the status.value.reading. If it passes, we know the catch block worked.
-      // The worker should comment out the mockConsoleLog assertion for this specific diagnostic run.
+      // Check for the log message from the main readNFC's catch block
+      expect(mockConsoleLog).toHaveBeenCalledWith("Scan aborted by user or timeout.");
     });
 
     it('ndef.scan() throws NotSupportedError: alerts, sets reading false', async () => {
