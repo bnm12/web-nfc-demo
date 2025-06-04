@@ -242,13 +242,28 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws NotSupportedError: alerts, sets reading false', async () => {
       const notSupportedError = new DOMException('WebNFC is not supported.', 'NotSupportedError');
-      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
-        await Promise.resolve(); 
-        throw notSupportedError; 
+
+      MockNDEFReaderConstructor.mockImplementationOnce(() => {
+        const specificMockInstance = {
+          scan: vi.fn().mockImplementationOnce(async () => {
+            await Promise.resolve(); // Ensure async behavior for throwing
+            throw notSupportedError;
+          }),
+          write: vi.fn(() => Promise.resolve()), // Default write
+          onreading: null,
+          onreadingerror: null,
+        };
+        // Update the global mockNdefReaderInstance reference. This is important if
+        // any part of the test or beforeEach/afterEach cleanup logic relies on it,
+        // though for this specific instance, it's primarily about what readNFC gets.
+        mockNdefReaderInstance = specificMockInstance;
+        return specificMockInstance;
       });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); 
+
+      // await Promise.resolve(); // Replace with nextTick for Vue reactivity
+      await nextTick();
       
       expect(mockAlert).toHaveBeenCalledWith("WebNFC is not supported on this device/browser.");
       expect(status.value.reading).toBe(false);
@@ -256,13 +271,24 @@ describe('nfcService', () => {
 
     it('ndef.scan() throws other error: alerts message, sets reading false', async () => {
       const otherError = new Error('Some other scan error');
-      mockNdefReaderInstance.scan.mockImplementationOnce(async () => { 
-        await Promise.resolve(); 
-        throw otherError; 
+
+      MockNDEFReaderConstructor.mockImplementationOnce(() => {
+        const specificMockInstance = {
+          scan: vi.fn().mockImplementationOnce(async () => {
+            await Promise.resolve(); // Ensure async behavior for throwing
+            throw otherError;
+          }),
+          write: vi.fn(() => Promise.resolve()), // Default write
+          onreading: null,
+          onreadingerror: null,
+        };
+        mockNdefReaderInstance = specificMockInstance;
+        return specificMockInstance;
       });
 
       await readNFC(status, scannedTag, continuousScan, scanAbortControllerRef);
-      await Promise.resolve(); 
+
+      await nextTick(); // Use nextTick for Vue reactivity
       
       expect(mockAlert).toHaveBeenCalledWith(`Error initiating scan: ${otherError.message}`);
       expect(status.value.reading).toBe(false);
@@ -315,14 +341,25 @@ describe('nfcService', () => {
 
     it('ndef.write() throws error: alerts, sets writing false', async () => {
       const writeError = new Error('Failed to write tag');
-      mockNdefReaderInstance.write.mockImplementationOnce(async () => { 
-        await Promise.resolve(); 
-        throw writeError; 
+
+      MockNDEFReaderConstructor.mockImplementationOnce(() => {
+        const specificMockInstance = {
+          scan: vi.fn(() => Promise.resolve()), // Default scan
+          write: vi.fn().mockImplementationOnce(async () => {
+            await Promise.resolve(); // Ensure async behavior for throwing
+            throw writeError;
+          }),
+          onreading: null,
+          onreadingerror: null,
+        };
+        mockNdefReaderInstance = specificMockInstance;
+        return specificMockInstance;
       });
+
       const records = [{ recordType: 'text', data: new DataView(new TextEncoder().encode("test").buffer) } as unknown as NDEFRecord];
-      
       await writeNFC(records, status);
-      await Promise.resolve(); 
+
+      await nextTick(); // Use nextTick for Vue reactivity
       
       expect(mockAlert).toHaveBeenCalledWith(`Error writing tag: ${writeError.message}`);
       expect(status.value.writing).toBe(false);
