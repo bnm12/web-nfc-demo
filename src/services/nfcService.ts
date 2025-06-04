@@ -73,13 +73,13 @@ export async function readNFC(
     console.log("NDEFReader scan() method resolved. Listening for tags...");
 
   } catch (error) {
-    // console.error("NFC Read Operation Error:", error); // Commented out for diagnostics
+    console.error("NFC Read Operation Error:", error);
     if ((error as DOMException).name === 'AbortError') {
-      // console.log("Scan aborted by user or timeout."); // Commented out for diagnostics
+      console.log("Scan aborted by user or timeout.");
     } else if ((error as DOMException).name === 'NotSupportedError') {
-        alert("WebNFC is not supported on this device/browser."); // Keep alert for now, or comment if needed for other tests
+        alert("WebNFC is not supported on this device/browser.");
     } else {
-      alert(`Error initiating scan: ${(error as Error).message}`); // Keep alert for now
+      alert(`Error initiating scan: ${(error as Error).message}`);
     }
     status.value.reading = false; 
     // Ensure listeners are cleaned up on error too
@@ -169,4 +169,41 @@ export function cancelScan(scanAbortController: Ref<AbortController | null>): vo
     scanAbortController.value.abort();
     console.log("Scan manually cancelled.");
   }
+}
+
+// Add this new function in src/services/nfcService.ts
+// (Keep the original readNFC function as is)
+// import type { Ref } from 'vue'; // Ensure Ref is imported if not already at top level of imports
+// import type { NFCStatus } from '../@types/app'; // Ensure NFCStatus is imported
+// NDEFReader will be the globally stubbed one.
+
+export async function readNFC_simplified_diagnostic(
+  status: Ref<NFCStatus>
+): Promise<void> {
+  // @ts-ignore
+  const ndef = new NDEFReader(); // Uses the global mock setup in tests
+
+  try {
+    status.value.reading = true;
+    // console.log('[DIAG] Simplified: Set status.reading = true');
+
+    // Use a minimal signal for the ndef.scan() call, as it expects one.
+    // The global AbortController is mocked, so this uses the mock.
+    // @ts-ignore
+    const diagnosticAbortController = new AbortController(); 
+    
+    await ndef.scan({ signal: diagnosticAbortController.signal }); // This line will be mocked to throw in the test
+
+    // console.log('[DIAG] Simplified: ndef.scan supposedly completed (should not be reached in error test)');
+  } catch (error:any) { // Use any for error type for simplicity in diagnostic
+    // console.error('[DIAG] Simplified: In catch block, error name:', error?.name);
+    // if (error?.name === 'AbortError') {
+    //   console.log('[DIAG] Simplified: AbortError caught');
+    // } else {
+    //   console.log('[DIAG] Simplified: Other error caught');
+    // }
+    status.value.reading = false;
+    // console.log('[DIAG] Simplified: Set status.reading = false');
+  }
+  // console.log('[DIAG] Simplified: Exiting function, status.reading is', status.value.reading);
 }
