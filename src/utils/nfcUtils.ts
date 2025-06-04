@@ -106,8 +106,10 @@ export function decodeRecord(record: NDEFRecord): string {
 // Converts an ArrayBuffer to a Base64 string, prepended with a data URL scheme.
 export function arrayBufferToBase64(buffer: ArrayBuffer, mediaType: string): string {
   const byteArray = new Uint8Array(buffer);
-  // Changed to Array.from for potentially better handling in environments like jsdom
-  let binaryString = Array.from(byteArray, byte => String.fromCharCode(byte)).join('');
+  let binaryString = '';
+  for (let i = 0; i < byteArray.length; i++) {
+    binaryString += String.fromCharCode(byteArray[i]);
+  }
   const base64Data = btoa(binaryString);
   return `data:${mediaType};base64,${base64Data}`;
 }
