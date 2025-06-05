@@ -220,7 +220,7 @@ describe('nfcUtils', () => {
     it('should handle binary data', () => {
         const buffer = new Uint8Array([0, 1, 2, 253, 254, 255]).buffer;
         const mediaType = 'application/octet-stream';
-        expect(arrayBufferToBase64(buffer, mediaType)).toBe('data:application/octet-stream;base64,AAEChf/+/w==');
+        expect(arrayBufferToBase64(buffer, mediaType)).toBe('data:application/octet-stream;base64,AAEC/f7/');
     });
   });
 
