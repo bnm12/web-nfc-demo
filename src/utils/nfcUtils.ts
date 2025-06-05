@@ -105,13 +105,27 @@ export function decodeRecord(record: NDEFRecord): string {
 
 // Converts an ArrayBuffer to a Base64 string, prepended with a data URL scheme.
 export function arrayBufferToBase64(buffer: ArrayBuffer, mediaType: string): string {
-  const byteArray = new Uint8Array(buffer);
-  let binaryString = '';
-  for (let i = 0; i < byteArray.length; i++) {
-    binaryString += String.fromCharCode(byteArray[i]);
+  const bytes = new Uint8Array(buffer);
+  let result = '';
+  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+  for (let i = 0; i < bytes.length; i += 3) {
+    const byte1 = bytes[i];
+    const byte2 = i + 1 < bytes.length ? bytes[i + 1] : undefined;
+    const byte3 = i + 2 < bytes.length ? bytes[i + 2] : undefined;
+
+    const char1 = byte1 >> 2;
+    const char2 = ((byte1 & 0x03) << 4) | (byte2 === undefined ? 0 : byte2 >> 4);
+    const char3 = byte2 === undefined ? 64 : ((byte2 & 0x0F) << 2) | (byte3 === undefined ? 0 : byte3 >> 6);
+    const char4 = byte3 === undefined ? 64 : byte3 & 0x3F;
+
+    result += base64Chars.charAt(char1);
+    result += base64Chars.charAt(char2);
+    result += (byte2 === undefined) ? '=' : base64Chars.charAt(char3);
+    result += (byte3 === undefined) ? '=' : base64Chars.charAt(char4);
   }
-  const base64Data = btoa(binaryString);
-  return `data:${mediaType};base64,${base64Data}`;
+
+  return `data:${mediaType};base64,${result}`;
 }
 
 // Converts an ArrayBuffer to a hexadecimal string.
